@@ -13,10 +13,7 @@ try {
     die("Erreur de connexion : " . $e->getMessage());
 }
 
-/*
-|--------------------------------------------------------------------------
-| RÉCUPÉRATION DE LA VRAIE IP (ngrok / proxy)
-|--------------------------------------------------------------------------
+/*RÉCUPÉRATION DE LA VRAIE IP (ngrok / proxy)
 */
 if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
     $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
@@ -27,9 +24,7 @@ if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
 }
 
 /*
-|--------------------------------------------------------------------------
-| SESSION UTILISATEUR UNIQUE
-|--------------------------------------------------------------------------
+SESSION UTILISATEUR UNIQUE
 */
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['user_id'] = bin2hex(random_bytes(16));
@@ -39,10 +34,7 @@ $session_id = $_SESSION['user_id'];
 $time   = time();
 $expire = $time - (5 * 60); // 5 minutes
 
-/*
-|--------------------------------------------------------------------------
-| 1. TABLE `connectes` → visiteurs connectés (sessions actives)
-|--------------------------------------------------------------------------
+/* TABLE `connectes` → visiteurs connectés (sessions actives)
 */
 $stmt = $pdo->prepare("
     INSERT INTO connectes (ip, session_id, timestamp)
@@ -60,11 +52,7 @@ $stmt = $pdo->query("SELECT COUNT(*) FROM connectes");
 $visiteurs_connectes = (int) $stmt->fetchColumn();
 
 /*
-|--------------------------------------------------------------------------
-| 2. TABLE `visiteurs_uniques` → NE SE RÉINITIALISE JAMAIS
-|--------------------------------------------------------------------------
-|  - 1 IP = 1 visiteur UNIQUE
-|--------------------------------------------------------------------------
+TABLE `visiteurs_uniques` → NE SE RÉINITIALISE JAMAIS
 */
 $stmt = $pdo->prepare("
     INSERT IGNORE INTO visiteurs_uniques (ip)
@@ -75,14 +63,6 @@ $stmt->execute([$ip]);
 // Total visiteurs uniques (historique)
 $stmt = $pdo->query("SELECT COUNT(*) FROM visiteurs_uniques");
 $visiteurs_unique_total = (int) $stmt->fetchColumn();
-
-/*
-|--------------------------------------------------------------------------
-| VARIABLES DISPONIBLES PARTOUT
-|--------------------------------------------------------------------------
-*/
-// $visiteurs_connectes
-// $visiteurs_unique_total
 
 // (Affichage facultatif)
 echo "Visiteurs connectés : $visiteurs_connectes<br>";
