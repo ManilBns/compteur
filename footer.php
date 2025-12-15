@@ -1,5 +1,5 @@
 <footer>
-    © <?php echo date("Y"); ?> - Mon Site | Tous droits réservés
+    © <?php echo date("Y"); ?> - Manil Site | Tous droits réservés
 </footer>
 
 </body>

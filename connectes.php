@@ -1,46 +1,90 @@
 <?php
-// ---------------------------------------------
-// Connexion à la base
-// ---------------------------------------------
-$pdo =  $pdo = new PDO(
+session_start();
+
+try {
+    // Connexion à la base
+    $pdo = new PDO(
         "mysql:host=localhost;dbname=projet_bdd;charset=utf8",
-        "root",     // utilisateur par défaut de WAMP
-        ""          // mot de passe par défaut de WAMP
+        "root",
+        ""
     );
-
-// ---------------------------------------------
-// Récupérer IP du visiteur
-// ---------------------------------------------
-$ip = $_SERVER['REMOTE_ADDR'];  
-$time = time();                  // timestamp actuel
-$expire = $time - (5 * 60);      // 5 minutes d’inactivité
-
-// ---------------------------------------------
-// 1. Vérifier si l'IP existe
-// ---------------------------------------------
-$stmt = $pdo->prepare("SELECT ip FROM connectes WHERE ip = ?");
-$stmt->execute([$ip]);
-
-if ($stmt->rowCount() == 0) {
-    // L'IP n'existe pas → insertion
-    $stmt = $pdo->prepare("INSERT INTO connectes (ip, timestamp) VALUES (?, ?)");
-    $stmt->execute([$ip, $time]);
-} else {
-    // L'IP existe → mise à jour
-    $stmt = $pdo->prepare("UPDATE connectes SET timestamp = ? WHERE ip = ?");
-    $stmt->execute([$time, $ip]);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Erreur de connexion : " . $e->getMessage());
 }
 
-// ---------------------------------------------
-// 2. Supprimer les IP inactives depuis +5 minutes
-// ---------------------------------------------
+/*
+|--------------------------------------------------------------------------
+| RÉCUPÉRATION DE LA VRAIE IP (ngrok / proxy)
+|--------------------------------------------------------------------------
+*/
+if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+    $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+} elseif (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+    $ip = $_SERVER['HTTP_X_REAL_IP'];
+} else {
+    $ip = $_SERVER['REMOTE_ADDR'];
+}
+
+/*
+|--------------------------------------------------------------------------
+| SESSION UTILISATEUR UNIQUE
+|--------------------------------------------------------------------------
+*/
+if (!isset($_SESSION['user_id'])) {
+    $_SESSION['user_id'] = bin2hex(random_bytes(16));
+}
+$session_id = $_SESSION['user_id'];
+
+$time   = time();
+$expire = $time - (5 * 60); // 5 minutes
+
+/*
+|--------------------------------------------------------------------------
+| 1. TABLE `connectes` → visiteurs connectés (sessions actives)
+|--------------------------------------------------------------------------
+*/
+$stmt = $pdo->prepare("
+    INSERT INTO connectes (ip, session_id, timestamp)
+    VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE timestamp = VALUES(timestamp)
+");
+$stmt->execute([$ip, $session_id, $time]);
+
+// Supprimer les sessions inactives
 $stmt = $pdo->prepare("DELETE FROM connectes WHERE timestamp < ?");
 $stmt->execute([$expire]);
 
-// ---------------------------------------------
-// 3. Compter les visiteurs connectés
-// ---------------------------------------------
-$stmt = $pdo->query("SELECT COUNT(*) AS nb FROM connectes");
-$result = $stmt->fetch();
-$visiteurs_connectes = $result['nb'];
+// Nombre de visiteurs connectés
+$stmt = $pdo->query("SELECT COUNT(*) FROM connectes");
+$visiteurs_connectes = (int) $stmt->fetchColumn();
+
+/*
+|--------------------------------------------------------------------------
+| 2. TABLE `visiteurs_uniques` → NE SE RÉINITIALISE JAMAIS
+|--------------------------------------------------------------------------
+|  - 1 IP = 1 visiteur UNIQUE
+|--------------------------------------------------------------------------
+*/
+$stmt = $pdo->prepare("
+    INSERT IGNORE INTO visiteurs_uniques (ip)
+    VALUES (?)
+");
+$stmt->execute([$ip]);
+
+// Total visiteurs uniques (historique)
+$stmt = $pdo->query("SELECT COUNT(*) FROM visiteurs_uniques");
+$visiteurs_unique_total = (int) $stmt->fetchColumn();
+
+/*
+|--------------------------------------------------------------------------
+| VARIABLES DISPONIBLES PARTOUT
+|--------------------------------------------------------------------------
+*/
+// $visiteurs_connectes
+// $visiteurs_unique_total
+
+// (Affichage facultatif)
+echo "Visiteurs connectés : $visiteurs_connectes<br>";
+echo "Visiteurs uniques total : $visiteurs_unique_total<br>";
 ?>
